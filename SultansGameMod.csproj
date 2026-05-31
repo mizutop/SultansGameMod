@@ -1,0 +1,99 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <AssemblyName>SultansGameMod</AssemblyName>
+    <RootNamespace>SultansGameMod</RootNamespace>
+    <Version>1.0.0</Version>
+    <Authors>modder</Authors>
+    <Description>游戏内修改面板 - 苏丹的游戏 MelonLoader Mod</Description>
+    <PlatformTarget>x64</PlatformTarget>
+    <LangVersion>10</LangVersion>
+    <Nullable>enable</Nullable>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- MelonLoader 核心引用 -->
+    <Reference Include="MelonLoader">
+      <HintPath>..\MelonLoader\net6\MelonLoader.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="0Harmony">
+      <HintPath>..\MelonLoader\net6\0Harmony.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Il2CppInterop.Runtime">
+      <HintPath>..\MelonLoader\net6\Il2CppInterop.Runtime.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>..\MelonLoader\net6\Newtonsoft.Json.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Unity 引擎引用 -->
+    <Reference Include="UnityEngine">
+      <HintPath>..\MelonLoader\Il2CppAssemblies\UnityEngine.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>..\MelonLoader\Il2CppAssemblies\UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.IMGUIModule">
+      <HintPath>..\MelonLoader\Il2CppAssemblies\UnityEngine.IMGUIModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UI">
+      <HintPath>..\MelonLoader\Il2CppAssemblies\UnityEngine.UI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.InputLegacyModule">
+      <HintPath>..\MelonLoader\Il2CppAssemblies\UnityEngine.InputLegacyModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- IL2CPP 游戏程序集引用 -->
+    <Reference Include="Assembly-CSharp">
+      <HintPath>..\MelonLoader\Il2CppAssemblies\Assembly-CSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Il2CppGame">
+      <HintPath>..\MelonLoader\Il2CppAssemblies\Il2CppGame.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Il2Cppmscorlib">
+      <HintPath>..\MelonLoader\Il2CppAssemblies\Il2Cppmscorlib.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Il2CppSystem">
+      <HintPath>..\MelonLoader\Il2CppAssemblies\Il2CppSystem.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Il2CppSystem.Core">
+      <HintPath>..\MelonLoader\Il2CppAssemblies\Il2CppSystem.Core.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Il2CppCore">
+      <HintPath>..\MelonLoader\Il2CppAssemblies\Il2CppCore.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Il2CppDOTween">
+      <HintPath>..\MelonLoader\Il2CppAssemblies\Il2CppDOTween.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Il2CppCommon">
+      <HintPath>..\MelonLoader\Il2CppAssemblies\Il2CppCommon.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Il2CppPromise">
+      <HintPath>..\MelonLoader\Il2CppAssemblies\Il2CppPromise.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <!-- Il2CppRSG types included in Il2CppPromise or other assemblies -->
+  </ItemGroup>
+</Project>

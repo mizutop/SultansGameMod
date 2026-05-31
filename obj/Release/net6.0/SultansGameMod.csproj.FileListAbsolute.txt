@@ -1,0 +1,16 @@
+D:\MyPoject\0530\SultansGameMod\obj\Release\net6.0\SultansGameMod.csproj.AssemblyReference.cache
+D:\MyPoject\0530\SultansGameMod\obj\Release\net6.0\SultansGameMod.GeneratedMSBuildEditorConfig.editorconfig
+D:\MyPoject\0530\SultansGameMod\obj\Release\net6.0\SultansGameMod.csproj.CoreCompileInputs.cache
+D:\MyPoject\0530\SultansGameMod\bin\Release\net6.0\SultansGameMod.deps.json
+D:\MyPoject\0530\SultansGameMod\bin\Release\net6.0\SultansGameMod.dll
+D:\MyPoject\0530\SultansGameMod\bin\Release\net6.0\SultansGameMod.pdb
+D:\MyPoject\0530\SultansGameMod\obj\Release\net6.0\SultansGameMod.dll
+D:\MyPoject\0530\SultansGameMod\obj\Release\net6.0\refint\SultansGameMod.dll
+D:\MyPoject\0530\SultansGameMod\obj\Release\net6.0\SultansGameMod.pdb
+D:\MyPoject\0530\SultansGameMod\obj\Release\net6.0\ref\SultansGameMod.dll
+D:\MyPoject\0530\build_output\SultansGameMod.deps.json
+D:\MyPoject\0530\build_output\SultansGameMod.dll
+D:\MyPoject\0530\build_output\SultansGameMod.pdb
+D:\MyPoject\0530\Mods\SultansGameMod.deps.json
+D:\MyPoject\0530\Mods\SultansGameMod.dll
+D:\MyPoject\0530\Mods\SultansGameMod.pdb
