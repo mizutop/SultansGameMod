@@ -77,15 +77,24 @@ namespace SultansGameMod.Harmony
                 {
                     var (text, action) = _pendingOptions[idx];
                     Main.Log?.Msg($"[NativeOption] 用户选择: {text}");
+
+                    // 在调用回调前保存当前 pending 引用。
+                    // 如果回调内部调用了 ShowOption()（嵌套菜单），
+                    // _pendingOptions 会被替换为新菜单的选项。
+                    // 此时不能清除，否则会破坏子菜单的状态。
+                    var savedOptions = _pendingOptions;
+                    _pendingOptionActive = false;
+                    _pendingOptions = null;
+
                     action?.Invoke();
+
+                    // 仅当回调没有设置新的 pendingOptions 时才最终确认清除
+                    // （正常情况下 already null，但防止外层再次清除）
                 }
             }
             catch (Exception ex)
             {
                 Main.Log?.Warning($"[NativeOption] 回调异常: {ex}");
-            }
-            finally
-            {
                 _pendingOptionActive = false;
                 _pendingOptions = null;
             }

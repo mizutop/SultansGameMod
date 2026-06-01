@@ -1,4 +1,5 @@
 using UnityEngine;
+using Il2Cpp;
 using SultansGameMod.Data;
 using SultansGameMod.Harmony;
 
@@ -28,6 +29,9 @@ namespace SultansGameMod.UI
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
         internal static void Draw()
         {
+            // 每帧刷新存档数据，确保回合数等信息与游戏实际进度同步
+            RuntimeEngine.Load();
+
             bool ready = false;
             try { ready = RuntimeEngine.IsReady; }
             catch (System.Exception ex) { Main.Log?.Warning($"[RoundTab.Draw][IsReady] 异常: {ex}"); }
@@ -45,16 +49,24 @@ namespace SultansGameMod.UI
             Styles.BeginGroup(Styles.RuntimeBg);
 
             // 回合信息 — 突出显示
+            // 使用运行时反射探测 + Harmony 追踪 + 存档回退 三重保障
             try
             {
                 var s = RuntimeEngine.Save;
+                int displayRound = RuntimeEngine.GetDisplayRound();
+
+                GUI.color = Color.yellow;
+                GUILayout.Label("=== 第 " + displayRound + " 回合 ===", GUILayout.Height(24));
+                GUI.color = Color.white;
                 if (s != null)
                 {
-                    GUI.color = Color.yellow;
-                    GUILayout.Label("=== 第 " + s.Round + " 回合 ===", GUILayout.Height(24));
-                    GUI.color = Color.white;
-                    GUILayout.Label("角色: " + (s.Name ?? "未知") + "  |  处刑日基数: " + s.SudanCardInitLife + "  |  局内卡牌: " + (s.Cards?.Count ?? 0));
+                    // 运行时读取 Player.sudan_card_init_life，不依赖存档 JSON
+                    int initLife = 7;
+                    try { var p = Il2Cpp.Common.Player; if (p != null) initLife = p.sudan_card_init_life; } catch { }
+                    GUILayout.Label("角色: " + (s.Name ?? "未知") + "  |  处刑日基数: " + initLife + "  |  局内卡牌: " + (s.Cards?.Count ?? 0));
                 }
+                else
+                    GUILayout.Label("(存档读取中...)");
             }
             catch (System.Exception ex) { Main.Log?.Warning($"[RoundTab.Draw][存档信息] 异常: {ex}"); GUILayout.Label("(存档读取异常)"); }
 
@@ -71,8 +83,21 @@ namespace SultansGameMod.UI
                         if (sudanCards != null)
                         {
                             int sudanCount = sudanCards.Count;
-                            int baseLife = 7;
-                            try { baseLife = RuntimeEngine.Save?.SudanCardInitLife ?? 7; } catch { }
+
+                            // 调用游戏原生方法 GetLeftSudanCardCount，直接从运行时获取处刑日
+                            int executionDay = 0;
+                            int leftCount = 0;
+                            try
+                            {
+                                var player = Il2Cpp.Common.Player;
+                                if (player != null)
+                                    leftCount = player.GetLeftSudanCardCount(out executionDay);
+                            }
+                            catch { }
+
+                            if (leftCount > 0)
+                                GUILayout.Label("处刑日剩余: " + executionDay + " 天");
+
                             GUILayout.Label("活跃苏丹牌: " + sudanCount + " 张");
 
                             int cardIdx = 0;
@@ -90,11 +115,11 @@ namespace SultansGameMod.UI
                                     }
                                     catch { }
                                     string cardName = GameDatabase.GetCardName(cardId) ?? "苏丹牌";
-                                    int remainDays = baseLife - cardLife;
+                                    int remainDays = cardLife;
                                     if (remainDays < 0) remainDays = 0;
                                     Color rc = Styles.GetRareColor(cardRare);
                                     GUI.color = rc;
-                                    GUILayout.Label($"  {Styles.GetRareIcon(cardRare)} {cardName} (剩余{remainDays}天)");
+                                    GUILayout.Label($"  {Styles.GetRareIcon(cardRare)} {cardName} (生命{remainDays}天)");
                                     GUI.color = Color.white;
                                 }
                             }

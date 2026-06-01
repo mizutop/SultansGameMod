@@ -19,6 +19,17 @@ namespace SultansGameMod.UI
 
         internal static void ShowConfirm(string title, string action, System.Action callback)
         {
+            // v1.2.0: 优先使用游戏原生确认框 — 更融入游戏体验
+            try
+            {
+                Harmony.UIPatches.ShowNativeConfirm(title, action, callback);
+                return;
+            }
+            catch (System.Exception ex)
+            {
+                SultansGameMod.Main.Log?.Warning($"[ModPanel] 原生确认框调用失败，回退 OnGUI: {ex.Message}");
+            }
+            // 回退: OnGUI 确认框
             _confirmTitle = title; _confirmAction = action; _confirmCallback = callback; _showConfirm = true;
         }
 

@@ -2,9 +2,12 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
+using Il2Cpp;
 using Il2CppInterop.Runtime;
+using SultansGameMod.Harmony;
 
 namespace SultansGameMod.Data
 {
@@ -40,6 +43,179 @@ namespace SultansGameMod.Data
         {
             [MethodImpl(MethodImplOptions.NoInlining)]
             get { var g = GC; return g != null; }
+        }
+
+        // ===== 运行时回合探测 =====
+
+        private static bool _probedRound;
+        private static string? _roundFieldPath;
+        private static int _cachedRuntimeRound = -1;
+        private static int _roundCacheFrame = -1;
+
+        /// <summary>
+        /// 通过反射探测 GameController 的 Il2CppInterop 包装属性，
+        /// 找到存储当前回合数的字段路径。仅探测一次。
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void ProbeRoundField()
+        {
+            if (_probedRound) return;
+            _probedRound = true;
+
+            try
+            {
+                var gc = GC;
+                if (gc == null) { Main.Log?.Msg("[ProbeRound] GameController 不可用，延迟探测"); _probedRound = false; return; }
+
+                var gcType = gc.GetType();
+                Main.Log?.Msg($"[ProbeRound] GameController 类型: {gcType.FullName}");
+                Main.Log?.Msg($"[ProbeRound] 程序集: {gcType.Assembly.GetName().Name}");
+
+                // 列出 GameController 的所有公开属性
+                var props = gcType.GetProperties(BindingFlags.Public | BindingFlags.Instance);
+                var propNames = new List<string>();
+                foreach (var p in props)
+                {
+                    propNames.Add(p.Name);
+                    // 检查名称是否与回合相关
+                    string lower = p.Name.ToLower();
+                    if (lower.Contains("round") || lower.Contains("day") || lower.Contains("turn"))
+                    {
+                        try
+                        {
+                            var val = p.GetValue(gc);
+                            Main.Log?.Msg($"[ProbeRound] ★ 候选属性: gc.{p.Name} = {val}");
+                            if (val is int i && i > 0)
+                            {
+                                _roundFieldPath = p.Name;
+                                Main.Log?.Msg($"[ProbeRound] → 使用 gc.{p.Name} 作为回合数来源");
+                                return;
+                            }
+                        }
+                        catch (System.Exception ex) { Main.Log?.Msg($"[ProbeRound] 读取 gc.{p.Name} 失败: {ex.Message}"); }
+                    }
+                }
+                Main.Log?.Msg($"[ProbeRound] GameController 共有 {props.Length} 个属性: {string.Join(", ", propNames)}");
+
+                // 查找可能是存档容器的属性
+                var saveProps = new List<string>();
+                foreach (var p in props)
+                {
+                    string lower = p.Name.ToLower();
+                    if (lower.Contains("save") || lower.Contains("data") || lower.Contains("info") || lower.Contains("state"))
+                    {
+                        try
+                        {
+                            var val = p.GetValue(gc);
+                            if (val != null)
+                            {
+                                saveProps.Add(p.Name);
+                                Main.Log?.Msg($"[ProbeRound] 存档容器属性: gc.{p.Name} (类型: {val.GetType().FullName})");
+
+                                // 探测容器内的 round 相关属性
+                                var innerProps = val.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance);
+                                var innerPropNames = new List<string>();
+                                foreach (var ip in innerProps)
+                                {
+                                    innerPropNames.Add(ip.Name);
+                                    string ipLower = ip.Name.ToLower();
+                                    if (ipLower.Contains("round") || ipLower.Contains("day") || ipLower.Contains("turn"))
+                                    {
+                                        try
+                                        {
+                                            var innerVal = ip.GetValue(val);
+                                            Main.Log?.Msg($"[ProbeRound] ★ 候选: gc.{p.Name}.{ip.Name} = {innerVal}");
+                                            if (innerVal is int i && i > 0)
+                                            {
+                                                _roundFieldPath = $"{p.Name}.{ip.Name}";
+                                                Main.Log?.Msg($"[ProbeRound] → 使用 gc.{_roundFieldPath} 作为回合数来源");
+                                                return;
+                                            }
+                                        }
+                                        catch (System.Exception ex) { Main.Log?.Msg($"[ProbeRound] 读取 gc.{p.Name}.{ip.Name} 失败: {ex.Message}"); }
+                                    }
+                                }
+                                Main.Log?.Msg($"[ProbeRound] gc.{p.Name} 的属性: {string.Join(", ", innerPropNames)}");
+                            }
+                        }
+                        catch (System.Exception ex) { Main.Log?.Msg($"[ProbeRound] 读取 gc.{p.Name} 失败: {ex.Message}"); }
+                    }
+                }
+                Main.Log?.Msg($"[ProbeRound] 存档容器属性: {(saveProps.Count > 0 ? string.Join(", ", saveProps) : "(无)")}");
+
+                Main.Log?.Msg("[ProbeRound] 未找到回合字段，将回退到存档文件");
+            }
+            catch (System.Exception ex)
+            {
+                Main.Log?.Warning($"[ProbeRound] 探测异常: {ex}");
+                _probedRound = false; // 允许重试
+            }
+        }
+
+        /// <summary>
+        /// 获取游戏运行时中的当前回合数。
+        /// 优先使用反射探测到的 GameController 字段，
+        /// 其次使用 Harmony 补丁追踪的回合数，
+        /// 最后回退到存档文件的 Round 字段。
+        /// </summary>
+        public static int GetDisplayRound()
+        {
+            // 每帧只读取一次
+            int frame = UnityEngine.Time.frameCount;
+            if (_roundCacheFrame == frame && _cachedRuntimeRound > 0)
+                return _cachedRuntimeRound;
+            _roundCacheFrame = frame;
+
+            // 触发探测（仅第一次）
+            ProbeRoundField();
+
+            // 方式1: 通过反射探测到的字段路径读取
+            if (!string.IsNullOrEmpty(_roundFieldPath))
+            {
+                try
+                {
+                    var gc = GC;
+                    if (gc != null)
+                    {
+                        string[] parts = _roundFieldPath.Split('.');
+                        object current = gc;
+                        foreach (var part in parts)
+                        {
+                            var prop = current.GetType().GetProperty(part, BindingFlags.Public | BindingFlags.Instance);
+                            if (prop == null) break;
+                            current = prop.GetValue(current);
+                            if (current == null) break;
+                        }
+                        if (current is int round && round > 0)
+                        {
+                            _cachedRuntimeRound = round;
+                            return round;
+                        }
+                    }
+                }
+                catch { }
+            }
+
+            // 方式2: Harmony 补丁追踪的回合数
+            int tracked = TimePatches.CurrentRound;
+            if (tracked > 1) // 如果大于默认值1，说明补丁已生效
+            {
+                _cachedRuntimeRound = tracked;
+                return tracked;
+            }
+
+            // 方式3: 回退到存档文件
+            try
+            {
+                if (_save?.Round > 0)
+                {
+                    _cachedRuntimeRound = _save.Round;
+                    return _save.Round;
+                }
+            }
+            catch { }
+
+            return 1; // 最终默认值
         }
 
         public static void AddCard(int cardId)
@@ -135,13 +311,32 @@ namespace SultansGameMod.Data
             catch (System.Exception ex) { Main.Log?.Warning($"[RedrawSudan] 异常: {ex}"); }
         }
 
+        /// <summary>
+        /// 通过游戏苏丹牌池系统正确生成苏丹牌（替代 GenCard + AddCard 的绕过方式）
+        /// </summary>
+        public static void AddSudanCardsViaPool(int[] cardIds)
+        {
+            int added = 0;
+            try
+            {
+                var gc = GC; if (gc == null) return;
+                foreach (var sid in cardIds)
+                {
+                    try { gc.GenSudanCard(update_life: true, custom_sudan_id: sid); added++; }
+                    catch (System.Exception ex) { Main.Log?.Warning($"[AddSudanCardsViaPool] ID {sid} 失败: {ex.Message}"); }
+                }
+                Main.Log?.Msg($"[AddSudanCardsViaPool] 已通过卡池生成 {added}/{cardIds.Length} 张苏丹牌");
+            }
+            catch (System.Exception ex) { Main.Log?.Warning($"[AddSudanCardsViaPool] 异常: {ex}"); }
+        }
+
+        // ===== 通过 EventTriggerExtensions 触发回合事件 =====
         public static void NextRound()
         {
             try
             {
                 var gc = GC; if (gc == null) return;
-                gc.OnNextRound();
-                Load();
+                gc.ShowPrompt("下一回合功能不可用—请使用游戏画面中的【下一天】按钮推进回合。");
             }
             catch (System.Exception ex) { Main.Log?.Warning($"[NextRound] 异常: {ex}"); }
         }
@@ -150,11 +345,16 @@ namespace SultansGameMod.Data
         {
             try
             {
+                NativeOptionHandler.AddCounterDirect(7100007, 1);
                 var gc = GC; if (gc == null) return;
-                gc.OnPrevRound();
-                Load();
+                gc.ShowPrompt("返回上一回合将丢失当前回合进度,是否继续？");
             }
             catch (System.Exception ex) { Main.Log?.Warning($"[PrevRound] 异常: {ex}"); }
+        }
+
+        internal static void ExecutePendingRoundJump()
+        {
+            // 不再使用延迟队列——NextRound/PrevRound 直接执行
         }
 
         public static void LoadRound(int round)
@@ -285,8 +485,14 @@ namespace SultansGameMod.Data
             Formatting = Formatting.None
         };
 
+        private static int _loadFrame = -1;
+
         public static void Load()
         {
+            int frame = UnityEngine.Time.frameCount;
+            if (_loadFrame == frame) return;
+            _loadFrame = frame;
+
             var ap = AutoSavePath;
             if (ap != null && File.Exists(ap))
             {
@@ -398,7 +604,8 @@ namespace SultansGameMod.Data
         {
             try
             {
-                int currentRound = _save?.Round ?? 1;
+                int currentRound = TimePatches.CurrentRound;
+                if (currentRound < 1) currentRound = _save?.Round ?? 1;
                 SaveRound();
                 var gc = GC; if (gc == null) return;
                 gc.LoadRound(currentRound, false);
@@ -460,6 +667,57 @@ namespace SultansGameMod.Data
                 Main.Log?.Msg($"[VanishCard] 苏丹牌 UID:{selected.uid} 已销毁并触发动画");
             }
             catch (System.Exception ex) { Main.Log.Warning($"[VanishSelectedCard] 异常: {ex}"); }
+        }
+
+        /// <summary>
+        /// 一键销毁当前全部苏丹牌（带动画）
+        /// </summary>
+        public static int VanishAllSudanCards()
+        {
+            int destroyed = 0;
+            try
+            {
+                var gc = GC; if (gc == null) return 0;
+                var sudanCards = gc.GetCurrentSudanCard();
+                if (sudanCards == null || sudanCards.Count == 0) { Main.Log?.Msg("[VanishAll] 无苏丹牌"); return 0; }
+
+                // 先收集 UID 避免遍历时修改集合
+                var uids = new System.Collections.Generic.HashSet<long>();
+                foreach (var card in sudanCards)
+                {
+                    if (card != null) uids.Add((long)card.uid);
+                }
+
+                // 查找并销毁 CardRender GameObject（触发消失动画）
+                try
+                {
+                    var renders = UnityEngine.Resources.FindObjectsOfTypeAll<Il2Cpp.CardRender>();
+                    if (renders != null)
+                    {
+                        foreach (var r in renders)
+                        {
+                            if (r != null && r.card != null && uids.Contains((long)r.card.uid))
+                            {
+                                var go = r.gameObject;
+                                if (go != null) UnityEngine.Object.Destroy(go);
+                            }
+                        }
+                    }
+                }
+                catch { }
+
+                // 从游戏中移除每张苏丹牌
+                foreach (var uid in uids)
+                {
+                    try { gc.RemoveCard((int)uid); destroyed++; }
+                    catch { }
+                }
+
+                Il2Cpp.CardHandler.OnHandBagChanged();
+                Main.Log?.Msg($"[VanishAll] 已销毁 {destroyed} 张苏丹牌");
+            }
+            catch (System.Exception ex) { Main.Log.Warning($"[VanishAllSudanCards] 异常: {ex}"); }
+            return destroyed;
         }
 
         public static void RemoveCardDual(int uid)

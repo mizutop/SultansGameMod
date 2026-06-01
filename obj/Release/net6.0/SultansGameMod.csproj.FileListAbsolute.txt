@@ -14,3 +14,6 @@ D:\MyPoject\0530\build_output\SultansGameMod.pdb
 D:\MyPoject\0530\Mods\SultansGameMod.deps.json
 D:\MyPoject\0530\Mods\SultansGameMod.dll
 D:\MyPoject\0530\Mods\SultansGameMod.pdb
+D:\MyPoject\0530\Re\Mods\SultansGameMod.deps.json
+D:\MyPoject\0530\Re\Mods\SultansGameMod.dll
+D:\MyPoject\0530\Re\Mods\SultansGameMod.pdb
